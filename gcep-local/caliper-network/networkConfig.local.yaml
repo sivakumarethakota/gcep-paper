@@ -1,0 +1,47 @@
+# Caliper network config for the LOCAL Docker Compose deployment.
+# Use with:
+#   npx caliper launch manager \
+#       --caliper-networkconfig networkConfig.local.yaml \
+#       --caliper-benchconfig benchmarks/w1-steady.yaml \
+#       --caliper-workspace .
+#
+# Differs from networkConfig.yaml only in endpoint URLs (localhost vs.
+# cluster DNS) — the workload modules are unchanged.
+
+name: gcep-fabric-network-local
+version: "2.0.0"
+caliper:
+  blockchain: fabric
+  sutOptions:
+    mutualTls: true
+
+channels:
+  - channelName: gcepchannel
+    contracts:
+      - id: gcep
+        version: "1.0"
+
+organizations:
+  - mspid: HospitalMSP
+    identities:
+      certificates:
+        - name: hospital-admin
+          clientPrivateKey:
+            path: ../gcep-local/crypto-config/peerOrganizations/hospital.gcep.local/users/Admin@hospital.gcep.local/msp/keystore/key.pem
+          clientSignedCert:
+            path: ../gcep-local/crypto-config/peerOrganizations/hospital.gcep.local/users/Admin@hospital.gcep.local/msp/signcerts/Admin@hospital.gcep.local-cert.pem
+    connectionProfile:
+      path: ./connection-profiles/hospital.local.yaml
+      discover: false      # discovery doesn't work cleanly across loopback NATs
+
+  - mspid: RegulatorMSP
+    identities:
+      certificates:
+        - name: regulator-admin
+          clientPrivateKey:
+            path: ../gcep-local/crypto-config/peerOrganizations/regulator.gcep.local/users/Admin@regulator.gcep.local/msp/keystore/key.pem
+          clientSignedCert:
+            path: ../gcep-local/crypto-config/peerOrganizations/regulator.gcep.local/users/Admin@regulator.gcep.local/msp/signcerts/Admin@regulator.gcep.local-cert.pem
+    connectionProfile:
+      path: ./connection-profiles/regulator.local.yaml
+      discover: false

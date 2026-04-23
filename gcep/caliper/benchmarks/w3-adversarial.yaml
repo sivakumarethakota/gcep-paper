@@ -1,0 +1,37 @@
+test:
+  name: gcep-w3-adversarial
+  description: >
+    Adversarial DSR workload. Half of the erasure requests carry invalid
+    Groth16 proofs (T3 attack from §3.9.6 of the paper). Measures the cost
+    of rejecting malicious traffic and confirms P2 (no unauthorised rewrite).
+  workers:
+    type: local
+    number: 8
+
+  rounds:
+    - label: w3-read-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/read.js, arguments: { readRatio: 0.50 } }
+
+    - label: w3-write-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/write.js, arguments: { writeRatio: 0.40 } }
+
+    - label: w3-erase-adversarial-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload:
+        module: workloads/erase.js
+        arguments:
+          eraseRatio: 0.10
+          invalidProofRatio: 0.50   # half of erase requests carry a forged proof
+
+monitors:
+  resource:
+    - module: prometheus
+      options:
+        url: "http://monitor.gcep.local:9090"
+        metrics:
+          include: [fabric_*, node_*]

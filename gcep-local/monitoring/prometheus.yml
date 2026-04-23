@@ -1,0 +1,45 @@
+# Prometheus scrape config for the GCEP local stack.
+# All targets resolve via Docker's embedded DNS on the gcepnet network.
+
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: node-exporter
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: fabric-peers
+    static_configs:
+      - targets:
+          - peer0-hospital:9443
+          - peer1-hospital:9443
+          - peer0-regulator:9443
+          - peer1-regulator:9443
+        labels:
+          component: peer
+    # Some peers won't exist under tiny/small profiles. Honour relabeling by
+    # dropping unreachable targets without alerting.
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'fabric_.*|go_.*|process_.*'
+        action: keep
+
+  - job_name: fabric-orderers
+    static_configs:
+      - targets:
+          - orderer0:8443
+          - orderer1:8443
+          - orderer2:8443
+        labels:
+          component: orderer

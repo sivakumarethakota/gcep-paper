@@ -1,0 +1,74 @@
+# Fabric connection profile — Hospital org, LOCAL deployment.
+# Caliper consumes this to dial peers and orderers from the load-gen process.
+
+name: gcep-hospital-local
+version: "1.0.0"
+client:
+  organization: HospitalMSP
+  connection:
+    timeout:
+      peer:
+        endorser: 300
+      orderer: 300
+
+organizations:
+  HospitalMSP:
+    mspid: HospitalMSP
+    peers:
+      - peer0.hospital.gcep.local
+      - peer1.hospital.gcep.local
+    certificateAuthorities: []
+
+orderers:
+  orderer0.gcep.local:
+    url: grpcs://127.0.0.1:7050
+    grpcOptions:
+      ssl-target-name-override: orderer0.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/ordererOrganizations/gcep.local/orderers/orderer0.gcep.local/msp/tlscacerts/tlsca.gcep.local-cert.pem
+  orderer1.gcep.local:
+    url: grpcs://127.0.0.1:7150
+    grpcOptions:
+      ssl-target-name-override: orderer1.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/ordererOrganizations/gcep.local/orderers/orderer1.gcep.local/msp/tlscacerts/tlsca.gcep.local-cert.pem
+  orderer2.gcep.local:
+    url: grpcs://127.0.0.1:7250
+    grpcOptions:
+      ssl-target-name-override: orderer2.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/ordererOrganizations/gcep.local/orderers/orderer2.gcep.local/msp/tlscacerts/tlsca.gcep.local-cert.pem
+
+peers:
+  peer0.hospital.gcep.local:
+    url: grpcs://127.0.0.1:7051
+    grpcOptions:
+      ssl-target-name-override: peer0.hospital.gcep.local
+      hostnameOverride: peer0.hospital.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer0.hospital.gcep.local/tls/ca.crt
+  peer1.hospital.gcep.local:
+    url: grpcs://127.0.0.1:8051
+    grpcOptions:
+      ssl-target-name-override: peer1.hospital.gcep.local
+      hostnameOverride: peer1.hospital.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer1.hospital.gcep.local/tls/ca.crt
+
+channels:
+  gcepchannel:
+    orderers:
+      - orderer0.gcep.local
+      - orderer1.gcep.local
+      - orderer2.gcep.local
+    peers:
+      peer0.hospital.gcep.local:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: true
+      peer1.hospital.gcep.local:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: false

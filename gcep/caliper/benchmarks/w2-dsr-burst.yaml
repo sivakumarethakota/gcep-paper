@@ -1,0 +1,32 @@
+test:
+  name: gcep-w2-dsr-burst
+  description: >
+    DSR burst scenario. Models a scheduled regulatory sweep or a breach-
+    notification-driven purge. 20% of transactions are erasures.
+  workers:
+    type: local
+    number: 8
+
+  rounds:
+    - label: w2-read-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/read.js, arguments: { readRatio: 0.60 } }
+
+    - label: w2-write-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/write.js, arguments: { writeRatio: 0.20 } }
+
+    - label: w2-erase-500
+      txDuration: 1800
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/erase.js, arguments: { eraseRatio: 0.20, invalidProofRatio: 0.0 } }
+
+monitors:
+  resource:
+    - module: prometheus
+      options:
+        url: "http://monitor.gcep.local:9090"
+        metrics:
+          include: [fabric_*, node_*]

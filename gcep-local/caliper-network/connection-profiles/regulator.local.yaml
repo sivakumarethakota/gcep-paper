@@ -1,0 +1,59 @@
+# Fabric connection profile — Regulator org, LOCAL deployment.
+
+name: gcep-regulator-local
+version: "1.0.0"
+client:
+  organization: RegulatorMSP
+  connection:
+    timeout:
+      peer:
+        endorser: 300
+      orderer: 300
+
+organizations:
+  RegulatorMSP:
+    mspid: RegulatorMSP
+    peers:
+      - peer0.regulator.gcep.local
+      - peer1.regulator.gcep.local
+    certificateAuthorities: []
+
+orderers:
+  orderer0.gcep.local:
+    url: grpcs://127.0.0.1:7050
+    grpcOptions:
+      ssl-target-name-override: orderer0.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/ordererOrganizations/gcep.local/orderers/orderer0.gcep.local/msp/tlscacerts/tlsca.gcep.local-cert.pem
+
+peers:
+  peer0.regulator.gcep.local:
+    url: grpcs://127.0.0.1:9051
+    grpcOptions:
+      ssl-target-name-override: peer0.regulator.gcep.local
+      hostnameOverride: peer0.regulator.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer0.regulator.gcep.local/tls/ca.crt
+  peer1.regulator.gcep.local:
+    url: grpcs://127.0.0.1:10051
+    grpcOptions:
+      ssl-target-name-override: peer1.regulator.gcep.local
+      hostnameOverride: peer1.regulator.gcep.local
+    tlsCACerts:
+      path: ../gcep-local/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer1.regulator.gcep.local/tls/ca.crt
+
+channels:
+  gcepchannel:
+    orderers:
+      - orderer0.gcep.local
+    peers:
+      peer0.regulator.gcep.local:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: true
+      peer1.regulator.gcep.local:
+        endorsingPeer: true
+        chaincodeQuery: true
+        ledgerQuery: true
+        eventSource: false

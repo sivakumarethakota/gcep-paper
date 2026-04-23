@@ -1,0 +1,402 @@
+# GCEP local deployment.
+#
+# Profiles (set via COMPOSE_PROFILES env var):
+#   tiny  : 1 peer + 1 orderer + 1 committee + 1 ipfs + monitoring  (~4 GB RAM under load)
+#   small : 2 peers + 1 orderer + 3 committee + 1 ipfs + monitoring (~8 GB RAM under load)
+#   full  : 4 peers + 3 orderers + 5 committee + 3 ipfs + monitoring (~16 GB RAM under load)
+#
+# Activate the profile you want — services tagged with smaller profiles inherit
+# into larger ones (a "full" run brings up everything).
+
+x-fabric-tls-env: &fabric-tls-env
+  CORE_PEER_TLS_ENABLED: "true"
+  CORE_PEER_TLS_CERT_FILE: /etc/hyperledger/fabric/tls/server.crt
+  CORE_PEER_TLS_KEY_FILE:  /etc/hyperledger/fabric/tls/server.key
+  CORE_PEER_TLS_ROOTCERT_FILE: /etc/hyperledger/fabric/tls/ca.crt
+
+x-peer-base: &peer-base
+  image: hyperledger/fabric-peer:${FABRIC_VERSION:-2.5.10}
+  restart: unless-stopped
+  environment:
+    <<: *fabric-tls-env
+    FABRIC_LOGGING_SPEC: INFO
+    CORE_PEER_GOSSIP_USELEADERELECTION: "true"
+    CORE_PEER_GOSSIP_ORGLEADER: "false"
+    CORE_VM_ENDPOINT: unix:///host/var/run/docker.sock
+    CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE: ${COMPOSE_PROJECT_NAME:-gcep}_gcepnet
+    CORE_LEDGER_STATE_STATEDATABASE: CouchDB
+    CORE_OPERATIONS_LISTENADDRESS: 0.0.0.0:9443     # Prometheus scrapes here
+    CORE_METRICS_PROVIDER: prometheus
+  volumes:
+    - /var/run/docker.sock:/host/var/run/docker.sock
+    - ./crypto-config:/etc/hyperledger/fabric/crypto-config:ro
+  networks: [gcepnet]
+
+x-orderer-base: &orderer-base
+  image: hyperledger/fabric-orderer:${FABRIC_VERSION:-2.5.10}
+  restart: unless-stopped
+  environment:
+    FABRIC_LOGGING_SPEC: INFO
+    ORDERER_GENERAL_LISTENADDRESS: 0.0.0.0
+    ORDERER_GENERAL_GENESISMETHOD: file
+    ORDERER_GENERAL_GENESISFILE: /var/hyperledger/orderer/orderer.genesis.block
+    ORDERER_GENERAL_LOCALMSPID: OrdererMSP
+    ORDERER_GENERAL_LOCALMSPDIR: /var/hyperledger/orderer/msp
+    ORDERER_GENERAL_TLS_ENABLED: "true"
+    ORDERER_GENERAL_TLS_PRIVATEKEY: /var/hyperledger/orderer/tls/server.key
+    ORDERER_GENERAL_TLS_CERTIFICATE: /var/hyperledger/orderer/tls/server.crt
+    ORDERER_GENERAL_TLS_ROOTCAS: '[/var/hyperledger/orderer/tls/ca.crt]'
+    ORDERER_GENERAL_CLUSTER_CLIENTPRIVATEKEY: /var/hyperledger/orderer/tls/server.key
+    ORDERER_GENERAL_CLUSTER_CLIENTCERTIFICATE: /var/hyperledger/orderer/tls/server.crt
+    ORDERER_GENERAL_CLUSTER_ROOTCAS: '[/var/hyperledger/orderer/tls/ca.crt]'
+    ORDERER_OPERATIONS_LISTENADDRESS: 0.0.0.0:8443
+    ORDERER_METRICS_PROVIDER: prometheus
+  volumes:
+    - ./crypto-config:/etc/hyperledger/fabric/crypto-config:ro
+  networks: [gcepnet]
+
+x-committee-base: &committee-base
+  # Placeholder image — replace with your real committee daemon image once built.
+  # The committee binary is a Go program implementing §3.5.4 Phase C of the paper.
+  image: alpine:3.20
+  restart: unless-stopped
+  command: ["sh", "-c", "echo 'committee daemon placeholder — replace with real image'; sleep infinity"]
+  environment:
+    THRESHOLD_T: "3"
+    THRESHOLD_N: "5"
+    FABRIC_PEER_ENDPOINT: peer0-hospital:7051
+  networks: [gcepnet]
+
+services:
+
+  # =========================================================================
+  # CouchDB state databases — one per peer
+  # =========================================================================
+  couchdb-peer0-hospital:
+    image: couchdb:${COUCHDB_VERSION:-3.3.3}
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: adminpw
+    mem_limit: ${COUCHDB_MEM:-512m}
+    networks: [gcepnet]
+
+  couchdb-peer1-hospital:
+    image: couchdb:${COUCHDB_VERSION:-3.3.3}
+    restart: unless-stopped
+    profiles: [small, full]
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: adminpw
+    mem_limit: ${COUCHDB_MEM:-512m}
+    networks: [gcepnet]
+
+  couchdb-peer0-regulator:
+    image: couchdb:${COUCHDB_VERSION:-3.3.3}
+    restart: unless-stopped
+    profiles: [small, full]
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: adminpw
+    mem_limit: ${COUCHDB_MEM:-512m}
+    networks: [gcepnet]
+
+  couchdb-peer1-regulator:
+    image: couchdb:${COUCHDB_VERSION:-3.3.3}
+    restart: unless-stopped
+    profiles: [full]
+    environment:
+      COUCHDB_USER: admin
+      COUCHDB_PASSWORD: adminpw
+    mem_limit: ${COUCHDB_MEM:-512m}
+    networks: [gcepnet]
+
+  # =========================================================================
+  # Fabric peers — Hospital org
+  # =========================================================================
+  peer0-hospital:
+    <<: *peer-base
+    container_name: peer0.hospital.gcep.local
+    profiles: [tiny, small, full]
+    hostname: peer0.hospital.gcep.local
+    environment:
+      <<: *fabric-tls-env
+      CORE_PEER_ID: peer0.hospital.gcep.local
+      CORE_PEER_ADDRESS: peer0-hospital:7051
+      CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
+      CORE_PEER_CHAINCODEADDRESS: peer0-hospital:7052
+      CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-hospital:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0-hospital:7051
+      CORE_PEER_LOCALMSPID: HospitalMSP
+      CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer0.hospital.gcep.local/msp
+      CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer0-hospital:5984
+      CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME: admin
+      CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD: adminpw
+    depends_on: [couchdb-peer0-hospital]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:7051:7051"
+      - "${BIND_HOST:-127.0.0.1}:9443:9443"
+    mem_limit: ${PEER_MEM:-2g}
+
+  peer1-hospital:
+    <<: *peer-base
+    container_name: peer1.hospital.gcep.local
+    profiles: [small, full]
+    hostname: peer1.hospital.gcep.local
+    environment:
+      <<: *fabric-tls-env
+      CORE_PEER_ID: peer1.hospital.gcep.local
+      CORE_PEER_ADDRESS: peer1-hospital:7051
+      CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
+      CORE_PEER_CHAINCODEADDRESS: peer1-hospital:7052
+      CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-hospital:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1-hospital:7051
+      CORE_PEER_LOCALMSPID: HospitalMSP
+      CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer1.hospital.gcep.local/msp
+      CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer1-hospital:5984
+      CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME: admin
+      CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD: adminpw
+    depends_on: [couchdb-peer1-hospital]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8051:7051"
+    mem_limit: ${PEER_MEM:-2g}
+
+  # =========================================================================
+  # Fabric peers — Regulator org
+  # =========================================================================
+  peer0-regulator:
+    <<: *peer-base
+    container_name: peer0.regulator.gcep.local
+    profiles: [small, full]
+    hostname: peer0.regulator.gcep.local
+    environment:
+      <<: *fabric-tls-env
+      CORE_PEER_ID: peer0.regulator.gcep.local
+      CORE_PEER_ADDRESS: peer0-regulator:7051
+      CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
+      CORE_PEER_CHAINCODEADDRESS: peer0-regulator:7052
+      CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-regulator:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0-regulator:7051
+      CORE_PEER_LOCALMSPID: RegulatorMSP
+      CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer0.regulator.gcep.local/msp
+      CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer0-regulator:5984
+      CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME: admin
+      CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD: adminpw
+    depends_on: [couchdb-peer0-regulator]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:9051:7051"
+    mem_limit: ${PEER_MEM:-2g}
+
+  peer1-regulator:
+    <<: *peer-base
+    container_name: peer1.regulator.gcep.local
+    profiles: [full]
+    hostname: peer1.regulator.gcep.local
+    environment:
+      <<: *fabric-tls-env
+      CORE_PEER_ID: peer1.regulator.gcep.local
+      CORE_PEER_ADDRESS: peer1-regulator:7051
+      CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
+      CORE_PEER_CHAINCODEADDRESS: peer1-regulator:7052
+      CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-regulator:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1-regulator:7051
+      CORE_PEER_LOCALMSPID: RegulatorMSP
+      CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer1.regulator.gcep.local/msp
+      CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer1-regulator:5984
+      CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME: admin
+      CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD: adminpw
+    depends_on: [couchdb-peer1-regulator]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:10051:7051"
+    mem_limit: ${PEER_MEM:-2g}
+
+  # =========================================================================
+  # RAFT orderers
+  # =========================================================================
+  orderer0:
+    <<: *orderer-base
+    container_name: orderer0.gcep.local
+    profiles: [tiny, small, full]
+    hostname: orderer0.gcep.local
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:7050:7050"
+    mem_limit: ${ORDERER_MEM:-1g}
+
+  orderer1:
+    <<: *orderer-base
+    container_name: orderer1.gcep.local
+    profiles: [full]
+    hostname: orderer1.gcep.local
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:7150:7050"
+    mem_limit: ${ORDERER_MEM:-1g}
+
+  orderer2:
+    <<: *orderer-base
+    container_name: orderer2.gcep.local
+    profiles: [full]
+    hostname: orderer2.gcep.local
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:7250:7050"
+    mem_limit: ${ORDERER_MEM:-1g}
+
+  # =========================================================================
+  # Threshold-BLS committee (placeholder image; replace with your daemon)
+  # =========================================================================
+  committee0:
+    <<: *committee-base
+    container_name: committee0.gcep.local
+    profiles: [tiny, small, full]
+    hostname: committee0.gcep.local
+    environment:
+      THRESHOLD_T: "3"
+      THRESHOLD_N: "5"
+      MEMBER_INDEX: "0"
+    mem_limit: ${COMMITTEE_MEM:-512m}
+
+  committee1:
+    <<: *committee-base
+    container_name: committee1.gcep.local
+    profiles: [small, full]
+    hostname: committee1.gcep.local
+    environment:
+      MEMBER_INDEX: "1"
+    mem_limit: ${COMMITTEE_MEM:-512m}
+
+  committee2:
+    <<: *committee-base
+    container_name: committee2.gcep.local
+    profiles: [small, full]
+    hostname: committee2.gcep.local
+    environment:
+      MEMBER_INDEX: "2"
+    mem_limit: ${COMMITTEE_MEM:-512m}
+
+  committee3:
+    <<: *committee-base
+    container_name: committee3.gcep.local
+    profiles: [full]
+    hostname: committee3.gcep.local
+    environment:
+      MEMBER_INDEX: "3"
+    mem_limit: ${COMMITTEE_MEM:-512m}
+
+  committee4:
+    <<: *committee-base
+    container_name: committee4.gcep.local
+    profiles: [full]
+    hostname: committee4.gcep.local
+    environment:
+      MEMBER_INDEX: "4"
+    mem_limit: ${COMMITTEE_MEM:-512m}
+
+  # =========================================================================
+  # IPFS-Cluster off-chain PHI store
+  # =========================================================================
+  ipfs0:
+    image: ipfs/kubo:v0.29.0
+    container_name: ipfs0
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:4001:4001"
+      - "${BIND_HOST:-127.0.0.1}:5001:5001"
+    mem_limit: ${IPFS_MEM:-1g}
+    networks: [gcepnet]
+
+  ipfs1:
+    image: ipfs/kubo:v0.29.0
+    container_name: ipfs1
+    restart: unless-stopped
+    profiles: [full]
+    mem_limit: ${IPFS_MEM:-1g}
+    networks: [gcepnet]
+
+  ipfs2:
+    image: ipfs/kubo:v0.29.0
+    container_name: ipfs2
+    restart: unless-stopped
+    profiles: [full]
+    mem_limit: ${IPFS_MEM:-1g}
+    networks: [gcepnet]
+
+  # =========================================================================
+  # Monitoring sidecars
+  # =========================================================================
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:9090:9090"
+    mem_limit: 1g
+    networks: [gcepnet]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:3000:3000"
+    depends_on: [prometheus]
+    mem_limit: 512m
+    networks: [gcepnet]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8080:8080"
+    mem_limit: 512m
+    networks: [gcepnet]
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    restart: unless-stopped
+    profiles: [tiny, small, full]
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:9100:9100"
+    mem_limit: 128m
+    networks: [gcepnet]
+
+# =============================================================================
+# Networking
+# =============================================================================
+networks:
+  gcepnet:
+    name: ${COMPOSE_PROJECT_NAME:-gcep}_gcepnet
+    driver: bridge

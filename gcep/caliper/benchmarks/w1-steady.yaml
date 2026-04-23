@@ -1,0 +1,94 @@
+test:
+  name: gcep-w1-steady-state
+  description: >
+    Steady-state workload. 70 read : 29 write : 1 erase, matching the 30-day
+    operational mix for a hospital. Scales from 250 to 1000 concurrent clients.
+    Run 5 independent replications; each round below is one replication.
+  workers:
+    type: local
+    number: 8
+
+  rounds:
+    - label: w1-read-250
+      description: "Read @ 250 clients"
+      txDuration: 300
+      rateControl:
+        type: fixed-load
+        opts:
+          transactionLoad: 250
+      workload:
+        module: workloads/read.js
+        arguments:
+          readRatio: 0.70
+
+    - label: w1-write-250
+      description: "Write @ 250 clients"
+      txDuration: 300
+      rateControl:
+        type: fixed-load
+        opts:
+          transactionLoad: 250
+      workload:
+        module: workloads/write.js
+        arguments:
+          writeRatio: 0.29
+
+    - label: w1-erase-250
+      description: "Erase @ 250 clients"
+      txDuration: 300
+      rateControl:
+        type: fixed-load
+        opts:
+          transactionLoad: 250
+      workload:
+        module: workloads/erase.js
+        arguments:
+          eraseRatio: 0.01
+          invalidProofRatio: 0.0
+
+    # Repeat at 500 and 1000 clients. Caliper has no loop primitive;
+    # we unroll rather than pull in a templating layer.
+
+    - label: w1-read-500
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/read.js, arguments: { readRatio: 0.70 } }
+
+    - label: w1-write-500
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/write.js, arguments: { writeRatio: 0.29 } }
+
+    - label: w1-erase-500
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 500 } }
+      workload: { module: workloads/erase.js, arguments: { eraseRatio: 0.01, invalidProofRatio: 0.0 } }
+
+    - label: w1-read-1000
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 1000 } }
+      workload: { module: workloads/read.js, arguments: { readRatio: 0.70 } }
+
+    - label: w1-write-1000
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 1000 } }
+      workload: { module: workloads/write.js, arguments: { writeRatio: 0.29 } }
+
+    - label: w1-erase-1000
+      txDuration: 300
+      rateControl: { type: fixed-load, opts: { transactionLoad: 1000 } }
+      workload: { module: workloads/erase.js, arguments: { eraseRatio: 0.01, invalidProofRatio: 0.0 } }
+
+monitors:
+  resource:
+    - module: prometheus
+      options:
+        url: "http://monitor.gcep.local:9090"
+        metrics:
+          include: [fabric_*, node_*]
+          queries:
+            - name: "Peer CPU"
+              query: "rate(container_cpu_usage_seconds_total{name=~'peer.*'}[1m])"
+              step: 15
+              label: instance
+              statistic: avg
