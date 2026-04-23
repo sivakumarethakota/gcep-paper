@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+	"crypto/x509"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -132,7 +133,7 @@ func NewMockClientIdentity(mspid, id string) *MockClientIdentity {
 
 func (c *MockClientIdentity) GetMSPID() (string, error)             { return c.mspid, nil }
 func (c *MockClientIdentity) GetID() (string, error)                { return c.id, nil }
-func (c *MockClientIdentity) GetX509Certificate() (any, error)      { return nil, nil }
+func (c *MockClientIdentity) GetX509Certificate() (*x509.Certificate, error) { return nil, nil }
 func (c *MockClientIdentity) GetAttributeValue(string) (string, bool, error) {
 	return "", false, nil
 }

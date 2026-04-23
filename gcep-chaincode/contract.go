@@ -25,6 +25,7 @@ import (
 
 	"github.com/yourorg/gcep/chaincode/internal/chameleon"
 	"github.com/yourorg/gcep/chaincode/internal/store"
+	"github.com/yourorg/gcep/chaincode/internal/types"
 	"github.com/yourorg/gcep/chaincode/internal/zkverify"
 )
 
@@ -51,16 +52,21 @@ func (s *SmartContract) Initialise(ctx contractapi.TransactionContextInterface, 
 	if err != nil {
 		return fmt.Errorf("load chameleon pk: %w", err)
 	}
-	vkRaw, err := hex.DecodeString(verifyingKeyHex)
-	if err != nil {
-		return fmt.Errorf("decode vk hex: %w", err)
-	}
-	v, err := zkverify.NewFromBytes(vkRaw)
-	if err != nil {
-		return fmt.Errorf("load zk verifier: %w", err)
-	}
 	s.chameleonPK = pk
-	s.zkVerifier = v
+
+	// VK loading is optional. Production deployments pass a real key.
+	// Tests that don't exercise Erase can pass "" to skip.
+	if verifyingKeyHex != "" {
+		vkRaw, err := hex.DecodeString(verifyingKeyHex)
+		if err != nil {
+			return fmt.Errorf("decode vk hex: %w", err)
+		}
+		v, err := zkverify.NewFromBytes(vkRaw)
+		if err != nil {
+			return fmt.Errorf("load zk verifier: %w", err)
+		}
+		s.zkVerifier = v
+	}
 	return nil
 }
 
@@ -81,17 +87,17 @@ func (s *SmartContract) Initialise(ctx contractapi.TransactionContextInterface, 
 //
 // Side effects:
 //
-//	- Persists Commitment{...Status: ACTIVE} at world-state key
-//	  "commitment\u0000<c>".
-//	- Emits chaincode event "Written".
+//   - Persists types.Commitment{...Status: ACTIVE} at world-state key
+//     "commitment\u0000<c>".
+//   - Emits chaincode event "Written".
 //
 // Errors:
 //
-//	- ErrCommitmentExists if the key is already populated.
-//	- Validation errors from NewCommitment for malformed inputs.
-//	- ErrChameleonMismatch if CH(m, r) != c (defensive — the client
-//	  should have computed c from the same m, r, but we verify so a
-//	  buggy client cannot poison world state).
+//   - types.ErrCommitmentExists if the key is already populated.
+//   - Validation errors from NewCommitment for malformed inputs.
+//   - types.ErrChameleonMismatch if CH(m, r) != c (defensive — the client
+//     should have computed c from the same m, r, but we verify so a
+//     buggy client cannot poison world state).
 func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bidStr, policy, sigP, m, r string) (string, error) {
 	bid, err := strconv.ParseUint(bidStr, 10, 64)
 	if err != nil {
@@ -103,7 +109,7 @@ func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bi
 		return "", err
 	}
 	if exists {
-		return "", ErrCommitmentExists
+		return "", types.ErrCommitmentExists
 	}
 
 	// Defensive chameleon check — confirm client-supplied c really is
@@ -116,7 +122,7 @@ func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bi
 		return "", fmt.Errorf("chameleon verify on write: %w", err)
 	}
 	if !ok {
-		return "", ErrChameleonMismatch
+		return "", types.ErrChameleonMismatch
 	}
 
 	submitter, err := submittingIdentity(ctx)
@@ -124,7 +130,7 @@ func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bi
 		return "", err
 	}
 
-	cmt, err := NewCommitment(c, bid, Policy(policy), sigP, m, r, submitter)
+	cmt, err := types.NewCommitment(c, bid, types.Policy(policy), sigP, m, r, submitter)
 	if err != nil {
 		return "", fmt.Errorf("build commitment: %w", err)
 	}
@@ -133,7 +139,7 @@ func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bi
 		return "", err
 	}
 
-	if err := emitEvent(ctx, "Written", EventWritten{
+	if err := emitEvent(ctx, "Written", types.EventWritten{
 		C:         cmt.C,
 		BID:       cmt.BID,
 		WrittenBy: submitter,
@@ -168,9 +174,9 @@ func (s *SmartContract) Write(ctx contractapi.TransactionContextInterface, c, bi
 //
 // Errors:
 //
-//	- ErrCommitmentNotFound if c is unknown.
-//	- ErrInvalidStatus if the commitment is not ACTIVE.
-//	- ErrZKProofRejected if Groth16.Verify fails.
+//   - types.ErrCommitmentNotFound if c is unknown.
+//   - types.ErrInvalidStatus if the commitment is not ACTIVE.
+//   - types.ErrZKProofRejected if Groth16.Verify fails.
 func (s *SmartContract) Erase(ctx contractapi.TransactionContextInterface, c, bidStr, zkProof string) error {
 	bid, err := strconv.ParseUint(bidStr, 10, 64)
 	if err != nil {
@@ -181,8 +187,8 @@ func (s *SmartContract) Erase(ctx contractapi.TransactionContextInterface, c, bi
 	if err != nil {
 		return err
 	}
-	if cmt.Status != StatusActive {
-		return fmt.Errorf("%w: status=%s", ErrInvalidStatus, cmt.Status)
+	if cmt.Status != types.StatusActive {
+		return fmt.Errorf("%w: status=%s", types.ErrInvalidStatus, cmt.Status)
 	}
 	if cmt.BID != bid {
 		return fmt.Errorf("bid mismatch: world state has %d, request says %d", cmt.BID, bid)
@@ -203,16 +209,16 @@ func (s *SmartContract) Erase(ctx contractapi.TransactionContextInterface, c, bi
 		CommitHash: hexMustDecode(c),
 	}
 	if err := s.zkVerifier.Verify(zkProof, pi); err != nil {
-		return fmt.Errorf("%w: %v", ErrZKProofRejected, err)
+		return fmt.Errorf("%w: %v", types.ErrZKProofRejected, err)
 	}
 
-	cmt.Status = StatusPendingErasure
+	cmt.Status = types.StatusPendingErasure
 	cmt.UpdatedAt = time.Now().UnixNano()
 	if err := store.Put(ctx, cmt); err != nil {
 		return err
 	}
 
-	return emitEvent(ctx, "EraseRequested", EventEraseRequested{
+	return emitEvent(ctx, "EraseRequested", types.EventEraseRequested{
 		C:         cmt.C,
 		BID:       cmt.BID,
 		M:         cmt.M,
@@ -249,20 +255,20 @@ func (s *SmartContract) Erase(ctx contractapi.TransactionContextInterface, c, bi
 //
 // Errors:
 //
-//	- ErrCommitmentNotFound
-//	- ErrInvalidStatus      if not in PENDING_ERASURE
-//	- ErrChameleonMismatch  if g^m' * y^r' != c
-//	- ErrCommitteeSigRejected (when threshold verify is wired in)
+//   - types.ErrCommitmentNotFound
+//   - types.ErrInvalidStatus      if not in PENDING_ERASURE
+//   - types.ErrChameleonMismatch  if g^m' * y^r' != c
+//   - types.ErrCommitteeSigRejected (when threshold verify is wired in)
 func (s *SmartContract) FinaliseErase(ctx contractapi.TransactionContextInterface, c, mPrime, rPrime, sigC, sigCMsg string) error {
 	cmt, err := store.Get(ctx, c)
 	if err != nil {
 		return err
 	}
-	if cmt.Status == StatusErased {
-		return ErrAlreadyErased
+	if cmt.Status == types.StatusErased {
+		return types.ErrAlreadyErased
 	}
-	if cmt.Status != StatusPendingErasure {
-		return fmt.Errorf("%w: status=%s", ErrInvalidStatus, cmt.Status)
+	if cmt.Status != types.StatusPendingErasure {
+		return fmt.Errorf("%w: status=%s", types.ErrInvalidStatus, cmt.Status)
 	}
 
 	if s.chameleonPK == nil {
@@ -275,7 +281,7 @@ func (s *SmartContract) FinaliseErase(ctx contractapi.TransactionContextInterfac
 		return fmt.Errorf("chameleon verify on finalise: %w", err)
 	}
 	if !ok {
-		return ErrChameleonMismatch
+		return types.ErrChameleonMismatch
 	}
 
 	// TODO(committee-bls): verify threshold-BLS signature sigC over sigCMsg.
@@ -283,7 +289,7 @@ func (s *SmartContract) FinaliseErase(ctx contractapi.TransactionContextInterfac
 	// and rely on Fabric endorsement (`AND(Hospital,Regulator)`) to gate the
 	// transaction. Replace with `bls.Verify(aggPubKey, sigCMsg, sigC)`.
 	if len(sigC) == 0 || len(sigCMsg) == 0 {
-		return fmt.Errorf("%w: sigC and sigCMsg required", ErrCommitteeSigRejected)
+		return fmt.Errorf("%w: sigC and sigCMsg required", types.ErrCommitteeSigRejected)
 	}
 
 	finaliser, err := submittingIdentity(ctx)
@@ -294,13 +300,13 @@ func (s *SmartContract) FinaliseErase(ctx contractapi.TransactionContextInterfac
 	mOld := cmt.M
 	cmt.M = mPrime
 	cmt.R = rPrime
-	cmt.Status = StatusErased
+	cmt.Status = types.StatusErased
 	cmt.UpdatedAt = time.Now().UnixNano()
 	if err := store.Put(ctx, cmt); err != nil {
 		return err
 	}
 
-	return emitEvent(ctx, "Erased", EventErased{
+	return emitEvent(ctx, "Erased", types.EventErased{
 		C:         cmt.C,
 		BID:       cmt.BID,
 		MOld:      mOld,
@@ -315,8 +321,8 @@ func (s *SmartContract) FinaliseErase(ctx contractapi.TransactionContextInterfac
 // -----------------------------------------------------------------------------
 
 // GetCommitment returns the JSON-encoded commitment record for hash c.
-// Returns ErrCommitmentNotFound if absent.
-func (s *SmartContract) GetCommitment(ctx contractapi.TransactionContextInterface, c string) (*Commitment, error) {
+// Returns types.ErrCommitmentNotFound if absent.
+func (s *SmartContract) GetCommitment(ctx contractapi.TransactionContextInterface, c string) (*types.Commitment, error) {
 	return store.Get(ctx, c)
 }
 

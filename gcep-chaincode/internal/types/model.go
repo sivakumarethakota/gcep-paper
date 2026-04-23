@@ -1,4 +1,4 @@
-package gcep
+package types
 
 import (
 	"encoding/json"

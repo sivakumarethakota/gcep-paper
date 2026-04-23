@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	gcep "github.com/yourorg/gcep/chaincode"
+	types "github.com/yourorg/gcep/chaincode/internal/types"
 )
 
 // helper — generate a chameleon keypair and a valid (c, m, r) tuple in hex
@@ -21,9 +22,9 @@ func freshChameleonTriple(t *testing.T) (pkHex, cHex, mHex, rHex string) {
 	mod := fr.Modulus()
 
 	x, _ := rand.Int(rand.Reader, mod)
-	var g bn254.G1Affine
-	_, _, gJac, _ := bn254.Generators()
-	g.FromJacobian(&gJac)
+	// var g bn254.G1Affine -- replaced below
+	_, _, g, _ := bn254.Generators()
+	// g initialised via Generators()
 
 	var yJac bn254.G1Jac
 	yJac.FromAffine(&g).ScalarMultiplication(&yJac, x)
@@ -58,7 +59,7 @@ func TestWrite_HappyPath(t *testing.T) {
 
 	contract := &gcep.SmartContract{}
 	ctx := NewMockContext()
-	require.NoError(t, contract.Initialise(ctx, pkHex, hex.EncodeToString([]byte("placeholder-vk"))))
+	require.NoError(t, contract.Initialise(ctx, pkHex, ""))
 
 	got, err := contract.Write(ctx, cHex, "100", "role:cardiologist", "deadbeef", mHex, rHex)
 	require.NoError(t, err)
@@ -67,7 +68,7 @@ func TestWrite_HappyPath(t *testing.T) {
 	// State persisted?
 	cmt, err := contract.GetCommitment(ctx, cHex)
 	require.NoError(t, err)
-	require.Equal(t, gcep.StatusActive, cmt.Status)
+	require.Equal(t, types.StatusActive, cmt.Status)
 	require.Equal(t, uint64(100), cmt.BID)
 
 	// Event emitted?
@@ -80,13 +81,13 @@ func TestWrite_DoubleWriteRejected(t *testing.T) {
 	pkHex, cHex, mHex, rHex := freshChameleonTriple(t)
 	contract := &gcep.SmartContract{}
 	ctx := NewMockContext()
-	require.NoError(t, contract.Initialise(ctx, pkHex, hex.EncodeToString([]byte("vk"))))
+	require.NoError(t, contract.Initialise(ctx, pkHex, ""))
 
 	_, err := contract.Write(ctx, cHex, "1", "p", "00", mHex, rHex)
 	require.NoError(t, err)
 
 	_, err = contract.Write(ctx, cHex, "1", "p", "00", mHex, rHex)
-	require.True(t, errors.Is(err, gcep.ErrCommitmentExists),
+	require.True(t, errors.Is(err, types.ErrCommitmentExists),
 		"second Write on same c must be rejected, got: %v", err)
 }
 
@@ -94,11 +95,11 @@ func TestWrite_ChameleonMismatchRejected(t *testing.T) {
 	pkHex, cHex, _, _ := freshChameleonTriple(t)
 	contract := &gcep.SmartContract{}
 	ctx := NewMockContext()
-	require.NoError(t, contract.Initialise(ctx, pkHex, hex.EncodeToString([]byte("vk"))))
+	require.NoError(t, contract.Initialise(ctx, pkHex, ""))
 
 	// Submit garbage m, r — defensive Verify must reject.
 	_, err := contract.Write(ctx, cHex, "1", "p", "00", "deadbeef", "cafef00d")
-	require.True(t, errors.Is(err, gcep.ErrChameleonMismatch),
+	require.True(t, errors.Is(err, types.ErrChameleonMismatch),
 		"mismatched (m, r) must be rejected, got: %v", err)
 }
 
@@ -106,21 +107,21 @@ func TestGetCommitment_NotFound(t *testing.T) {
 	contract := &gcep.SmartContract{}
 	ctx := NewMockContext()
 	_, err := contract.GetCommitment(ctx, "00")
-	require.True(t, errors.Is(err, gcep.ErrCommitmentNotFound))
+	require.True(t, errors.Is(err, types.ErrCommitmentNotFound))
 }
 
 func TestFinaliseErase_RequiresPendingStatus(t *testing.T) {
 	pkHex, cHex, mHex, rHex := freshChameleonTriple(t)
 	contract := &gcep.SmartContract{}
 	ctx := NewMockContext()
-	require.NoError(t, contract.Initialise(ctx, pkHex, hex.EncodeToString([]byte("vk"))))
+	require.NoError(t, contract.Initialise(ctx, pkHex, ""))
 
 	_, err := contract.Write(ctx, cHex, "1", "p", "00", mHex, rHex)
 	require.NoError(t, err)
 
 	// Skip Erase; FinaliseErase must refuse on ACTIVE.
 	err = contract.FinaliseErase(ctx, cHex, mHex, rHex, "deadbeef", "feed")
-	require.True(t, errors.Is(err, gcep.ErrInvalidStatus),
+	require.True(t, errors.Is(err, types.ErrInvalidStatus),
 		"FinaliseErase on ACTIVE commitment must be rejected, got: %v", err)
 }
 

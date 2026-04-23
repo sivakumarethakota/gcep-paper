@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	gcep "github.com/yourorg/gcep/chaincode"
+	types "github.com/yourorg/gcep/chaincode/internal/types"
 	"github.com/yourorg/gcep/chaincode/test"
 )
 
@@ -21,7 +21,7 @@ func TestCommitmentKey_Lowercase(t *testing.T) {
 func TestPutGet_Roundtrip(t *testing.T) {
 	ctx := test.NewMockContext()
 
-	cmt, err := gcep.NewCommitment(
+	cmt, err := types.NewCommitment(
 		"abcd1234",
 		42,
 		"role:cardiologist",
@@ -44,7 +44,7 @@ func TestPutGet_Roundtrip(t *testing.T) {
 func TestGet_NotFound(t *testing.T) {
 	ctx := test.NewMockContext()
 	_, err := Get(ctx, "00000000")
-	require.True(t, errors.Is(err, gcep.ErrCommitmentNotFound))
+	require.True(t, errors.Is(err, types.ErrCommitmentNotFound))
 }
 
 func TestExists(t *testing.T) {
@@ -54,7 +54,7 @@ func TestExists(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, exists)
 
-	cmt, _ := gcep.NewCommitment("abcd1234", 1, "p", "00", "00", "00", "alice")
+	cmt, _ := types.NewCommitment("abcd1234", 1, "p", "00", "00", "00", "alice")
 	require.NoError(t, Put(ctx, cmt))
 
 	exists, err = Exists(ctx, "abcd1234")

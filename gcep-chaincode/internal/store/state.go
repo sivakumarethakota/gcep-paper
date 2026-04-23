@@ -11,7 +11,7 @@ import (
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 
-	gcep "github.com/yourorg/gcep/chaincode"
+	types "github.com/yourorg/gcep/chaincode/internal/types"
 )
 
 const (
@@ -27,22 +27,22 @@ func CommitmentKey(c string) string {
 	return keyPrefix + strings.ToLower(c)
 }
 
-// Get returns the commitment with hash c, or gcep.ErrCommitmentNotFound if
+// Get returns the commitment with hash c, or types.ErrCommitmentNotFound if
 // no such record exists. Other errors (CouchDB unreachable, etc.) propagate.
-func Get(ctx contractapi.TransactionContextInterface, c string) (*gcep.Commitment, error) {
+func Get(ctx contractapi.TransactionContextInterface, c string) (*types.Commitment, error) {
 	raw, err := ctx.GetStub().GetState(CommitmentKey(c))
 	if err != nil {
 		return nil, fmt.Errorf("getstate: %w", err)
 	}
 	if raw == nil {
-		return nil, gcep.ErrCommitmentNotFound
+		return nil, types.ErrCommitmentNotFound
 	}
-	return gcep.UnmarshalCommitment(raw)
+	return types.UnmarshalCommitment(raw)
 }
 
 // Put writes a commitment to world state. It does NOT enforce status
 // transitions — callers must do that before calling Put.
-func Put(ctx contractapi.TransactionContextInterface, cmt *gcep.Commitment) error {
+func Put(ctx contractapi.TransactionContextInterface, cmt *types.Commitment) error {
 	if cmt == nil {
 		return errors.New("nil commitment")
 	}

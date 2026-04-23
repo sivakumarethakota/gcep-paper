@@ -23,9 +23,9 @@ func freshTriple(t *testing.T) (pkHex, cHex, mHex, rHex string) {
 	require.NoError(t, err)
 
 	// y = g^x
-	var g bn254.G1Affine
-	_, _, gJac, _ := bn254.Generators()
-	g.FromJacobian(&gJac)
+	// var g bn254.G1Affine -- replaced below
+	_, _, g, _ := bn254.Generators()
+	// g initialised via Generators()
 
 	var yJac bn254.G1Jac
 	yJac.FromAffine(&g).ScalarMultiplication(&yJac, x)

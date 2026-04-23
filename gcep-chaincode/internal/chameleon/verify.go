@@ -62,9 +62,7 @@ func (pk *PublicKey) Verify(cHex, mHex, rHex string) (bool, error) {
 	}
 
 	// Compute g^m and y^r, sum, compare to c.
-	var g bn254.G1Affine
-	_, _, gJac, _ := bn254.Generators()
-	g.FromJacobian(&gJac)
+	_, _, g, _ := bn254.Generators()
 
 	var gm, yr, sum bn254.G1Jac
 	gm.FromAffine(&g).ScalarMultiplication(&gm, m)
