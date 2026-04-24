@@ -9,12 +9,11 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	tedwards "github.com/consensys/gnark-crypto/ecc/twistededwards"
-	eddsa_native "github.com/consensys/gnark-crypto/ecc/twistededwards/eddsa"
+	eddsa_native "github.com/consensys/gnark-crypto/ecc/bn254/twistededwards/eddsa"
 	hash_native "github.com/consensys/gnark-crypto/hash"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/std/signature/eddsa"
 	"github.com/consensys/gnark/test"
 )
 
@@ -111,22 +110,21 @@ func buildValidAssignment(t *testing.T) *OwnCircuit {
 	t.Helper()
 
 	// --- 1. Native keypair ----------------------------------------------------
-	sk, err := eddsa_native.New(tedwards.BN254, rand.Reader)
+	sk, err := eddsa_native.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatalf("eddsa keygen: %v", err)
 	}
-	pk := sk.Public()
-	pkBytes := pk.Bytes()
 
 	// --- 2. Public inputs -----------------------------------------------------
 	// ID = MiMC(PubX, PubY) using the same MiMC instance the circuit uses.
 	hID := hash_native.MIMC_BN254.New()
-	// PubKey bytes for Baby JubJub/BN254 are fixed-width coordinates; split:
-	halfLen := len(pkBytes) / 2
-	pubX := pkBytes[:halfLen]
-	pubY := pkBytes[halfLen:]
-	hID.Write(pubX)
-	hID.Write(pubY)
+	// Concrete EdDSA pubkey carries the affine coords as struct fields; each
+	// coordinate marshals to exactly 32 bytes (one BN254 fr field element).
+	pkConcrete := sk.PublicKey
+	pubXBytes := pkConcrete.A.X.Marshal()
+	pubYBytes := pkConcrete.A.Y.Marshal()
+	hID.Write(pubXBytes)
+	hID.Write(pubYBytes)
 	idBytes := hID.Sum(nil)
 
 	commitHash := randomFieldElement()
@@ -152,6 +150,7 @@ func buildValidAssignment(t *testing.T) *OwnCircuit {
 		CommitHash: commitHash,
 		Msg:        new(big.Int).SetBytes(msgBytes),
 	}
+	pkBytes := pkConcrete.Bytes()
 	assignment.PubKey.Assign(tedwards.BN254, pkBytes)
 	assignment.Sig.Assign(tedwards.BN254, sig)
 

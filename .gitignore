@@ -1,0 +1,5 @@
+
+# Phase 3 — never commit private cryptographic material
+gcep/circuits/keys/proving.key
+gcep/circuits/keys/trapdoor.hex
+gcep/circuits/keys/r1cs.bin
