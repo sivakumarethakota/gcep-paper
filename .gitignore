@@ -3,3 +3,8 @@
 gcep/circuits/keys/proving.key
 gcep/circuits/keys/trapdoor.hex
 gcep/circuits/keys/r1cs.bin
+# Phase 4 — Hyperledger generates these per run
+gcep-local/channel-artifacts/genesis.block
+gcep-local/channel-artifacts/gcepchannel.tx
+gcep-local/channel-artifacts/gcepchannel.block
+gcep-local/crypto-config/
