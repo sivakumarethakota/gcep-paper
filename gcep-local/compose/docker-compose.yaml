@@ -128,21 +128,29 @@ services:
       CORE_PEER_TLS_KEY_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer0.hospital.gcep.local/tls/server.key
       CORE_PEER_TLS_ROOTCERT_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer0.hospital.gcep.local/tls/ca.crt
       CORE_PEER_ID: peer0.hospital.gcep.local
-      CORE_PEER_ADDRESS: peer0-hospital:7051
+      CORE_PEER_ADDRESS: peer0.hospital.gcep.local:7051
       CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
-      CORE_PEER_CHAINCODEADDRESS: peer0-hospital:7052
+      CORE_PEER_CHAINCODEADDRESS: peer0.hospital.gcep.local:7052
       CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
-      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-hospital:7051
-      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0-hospital:7051
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0.hospital.gcep.local:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0.hospital.gcep.local:7051
       CORE_PEER_LOCALMSPID: HospitalMSP
       CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer0.hospital.gcep.local/msp
       CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer0-hospital:5984
       CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME: admin
       CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD: adminpw
     depends_on: [couchdb-peer0-hospital]
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - ../crypto-config:/etc/hyperledger/fabric/crypto-config:ro
+      - ../channel-artifacts:/etc/hyperledger/fabric/channel-artifacts
     ports:
       - "${BIND_HOST:-127.0.0.1}:7051:7051"
       - "${BIND_HOST:-127.0.0.1}:9443:9443"
+    networks:
+      gcepnet:
+        aliases:
+          - peer0.hospital.gcep.local
     mem_limit: ${PEER_MEM:-2g}
 
   peer1-hospital:
@@ -156,12 +164,12 @@ services:
       CORE_PEER_TLS_KEY_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer1.hospital.gcep.local/tls/server.key
       CORE_PEER_TLS_ROOTCERT_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer1.hospital.gcep.local/tls/ca.crt
       CORE_PEER_ID: peer1.hospital.gcep.local
-      CORE_PEER_ADDRESS: peer1-hospital:7051
+      CORE_PEER_ADDRESS: peer1.hospital.gcep.local:7051
       CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
-      CORE_PEER_CHAINCODEADDRESS: peer1-hospital:7052
+      CORE_PEER_CHAINCODEADDRESS: peer1.hospital.gcep.local:7052
       CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
-      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-hospital:7051
-      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1-hospital:7051
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0.hospital.gcep.local:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1.hospital.gcep.local:7051
       CORE_PEER_LOCALMSPID: HospitalMSP
       CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/hospital.gcep.local/peers/peer1.hospital.gcep.local/msp
       CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer1-hospital:5984
@@ -170,6 +178,10 @@ services:
     depends_on: [couchdb-peer1-hospital]
     ports:
       - "${BIND_HOST:-127.0.0.1}:8051:7051"
+    networks:
+      gcepnet:
+        aliases:
+          - peer1.hospital.gcep.local
     mem_limit: ${PEER_MEM:-2g}
 
   # =========================================================================
@@ -186,12 +198,12 @@ services:
       CORE_PEER_TLS_KEY_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer0.regulator.gcep.local/tls/server.key
       CORE_PEER_TLS_ROOTCERT_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer0.regulator.gcep.local/tls/ca.crt
       CORE_PEER_ID: peer0.regulator.gcep.local
-      CORE_PEER_ADDRESS: peer0-regulator:7051
+      CORE_PEER_ADDRESS: peer0.regulator.gcep.local:7051
       CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
-      CORE_PEER_CHAINCODEADDRESS: peer0-regulator:7052
+      CORE_PEER_CHAINCODEADDRESS: peer0.regulator.gcep.local:7052
       CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
-      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-regulator:7051
-      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0-regulator:7051
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0.regulator.gcep.local:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer0.regulator.gcep.local:7051
       CORE_PEER_LOCALMSPID: RegulatorMSP
       CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer0.regulator.gcep.local/msp
       CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer0-regulator:5984
@@ -200,6 +212,10 @@ services:
     depends_on: [couchdb-peer0-regulator]
     ports:
       - "${BIND_HOST:-127.0.0.1}:9051:7051"
+    networks:
+      gcepnet:
+        aliases:
+          - peer0.regulator.gcep.local
     mem_limit: ${PEER_MEM:-2g}
 
   peer1-regulator:
@@ -213,12 +229,12 @@ services:
       CORE_PEER_TLS_KEY_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer1.regulator.gcep.local/tls/server.key
       CORE_PEER_TLS_ROOTCERT_FILE: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer1.regulator.gcep.local/tls/ca.crt
       CORE_PEER_ID: peer1.regulator.gcep.local
-      CORE_PEER_ADDRESS: peer1-regulator:7051
+      CORE_PEER_ADDRESS: peer1.regulator.gcep.local:7051
       CORE_PEER_LISTENADDRESS: 0.0.0.0:7051
-      CORE_PEER_CHAINCODEADDRESS: peer1-regulator:7052
+      CORE_PEER_CHAINCODEADDRESS: peer1.regulator.gcep.local:7052
       CORE_PEER_CHAINCODELISTENADDRESS: 0.0.0.0:7052
-      CORE_PEER_GOSSIP_BOOTSTRAP: peer0-regulator:7051
-      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1-regulator:7051
+      CORE_PEER_GOSSIP_BOOTSTRAP: peer0.regulator.gcep.local:7051
+      CORE_PEER_GOSSIP_EXTERNALENDPOINT: peer1.regulator.gcep.local:7051
       CORE_PEER_LOCALMSPID: RegulatorMSP
       CORE_PEER_MSPCONFIGPATH: /etc/hyperledger/fabric/crypto-config/peerOrganizations/regulator.gcep.local/peers/peer1.regulator.gcep.local/msp
       CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS: couchdb-peer1-regulator:5984
@@ -227,6 +243,10 @@ services:
     depends_on: [couchdb-peer1-regulator]
     ports:
       - "${BIND_HOST:-127.0.0.1}:10051:7051"
+    networks:
+      gcepnet:
+        aliases:
+          - peer1.regulator.gcep.local
     mem_limit: ${PEER_MEM:-2g}
 
   # =========================================================================
